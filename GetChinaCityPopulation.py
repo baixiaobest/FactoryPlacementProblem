@@ -1,8 +1,9 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import pickle
+import re
 
-if __name__=="__main__":
+def get_population1():
     name_population_dict = {}
     # selenium爬取省份名称
     chrome_options = webdriver.ChromeOptions()
@@ -28,3 +29,37 @@ if __name__=="__main__":
     filehandler = open('data/populationdata', 'wb')
     pickle.dump(name_population_dict, filehandler)
     filehandler.close()
+
+def get_population2():
+    name_population_dict = {}
+    # selenium爬取省份名称
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument('headless')
+    print("creating driver")
+    driver = webdriver.Chrome(options=chrome_options)
+    print("Driver created")
+    url = 'https://baike.baidu.com/item/中国城市人口排名表/16620508'
+    driver.get(url)
+    tables = driver.find_elements(By.CSS_SELECTOR, "table")
+    tables = tables[0:7]
+    print("results acquired")
+    for table in tables:
+        for entry in table.find_elements(By.CSS_SELECTOR, 'tr'):
+            cells = entry.find_elements(By.CSS_SELECTOR, 'td')
+            order = re.sub("[^0-9,.]", '', cells[0].text)
+            if order == '':
+                continue
+            name = cells[1].text
+            population = re.sub("[^0-9,.]", '', cells[2].text)
+            name_population_dict[name] = float(population)
+    driver.close()
+    print("driver closed")
+
+    print(name_population_dict)
+
+    filehandler = open('data/populationdata', 'wb')
+    pickle.dump(name_population_dict, filehandler)
+    filehandler.close()
+
+if __name__=="__main__":
+    get_population2()
