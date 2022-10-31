@@ -65,14 +65,14 @@ def facotory_placement(lat_long, population, k, factory_capacity=np.inf, d_max=n
     problem.solve()
 
     print(problem.status)
-    return X.value, C
+    return X.value, D, C
 
 def plot_cities(utm_list, city_names):
     # Plot cities before assignments
     plt.figure()
     plt.scatter(utm_list[:, 0], utm_list[:, 1])
-    plt.xlim([-1.5e6, 1.5e6])
-    plt.ylim([2e6, 5e6])
+    plt.xlim([-2e6, 1.5e6])
+    plt.ylim([2e6, 5.5e6])
 
     for i in range(utm_list.shape[0]):
         name = city_names[i]
@@ -98,22 +98,42 @@ def plot_city_clusters(clusters, clusters_centers, city_names, utm_list):
         ax = plt.gca()
         ax.annotate(name, (utm_list[i, 0], utm_list[i, 1]))
 
-def plot_cluster_info(cluster_names, cluster_sizes, cluster_population, cluster_cost):
+def plot_cluster_info(cluster_names, cluster_sizes, cluster_population, cluster_cost, cluster_max_dist):
+    n = len(cluster_names)
+
+    cluster_sizes_dup, cluster_names_dup = sort_two_lists(cluster_sizes, cluster_names)
     plt.figure()
     ax = plt.subplot(2, 1, 1)
-    ax.bar(range(len(cluster_sizes)), cluster_sizes, tick_label=cluster_names)
+    ax.bar(range(n), cluster_sizes_dup, tick_label=cluster_names_dup)
     ax.set_title("细胞中心位置vs供应城市数量")
     ax.set_ylabel("供应城市数量")
 
+    cluster_population_dup, cluster_names_dup = sort_two_lists(cluster_population, cluster_names)
     ax = plt.subplot(2, 1, 2)
-    ax.bar(range(len(cluster_population)), cluster_population, tick_label=cluster_names)
+    ax.bar(range(n), cluster_population_dup, tick_label=cluster_names_dup)
     ax.set_title("细胞中心位置vs供应人口")
     ax.set_ylabel("供应人口(万人)")
 
+    cluster_cost_dup, cluster_names_dup = sort_two_lists(cluster_cost, cluster_names)
     plt.figure()
-    plt.gca().bar(range(len(cluster_cost)), cluster_cost, tick_label=cluster_names)
-    plt.gca().set_title("细胞中心位置vs相对运输支出")
-    plt.gca().set_ylabel("相对运输支出(%)")
+    ax = plt.subplot(2, 1, 1)
+    ax.bar(range(n), cluster_cost_dup, tick_label=cluster_names_dup)
+    ax.set_title("细胞中心位置vs相对运输支出")
+    ax.set_ylabel("相对运输支出(%)")
+
+    cluster_max_dist_dup, cluster_names_dup = sort_two_lists(cluster_max_dist, cluster_names)
+    ax = plt.subplot(2, 1, 2)
+    ax.bar(range(n), cluster_max_dist_dup, tick_label=cluster_names_dup)
+    ax.set_title("细胞中心位置vs最远运输距离")
+    ax.set_ylabel("最远运输距离(km)")
+
+def sort_two_lists(list1, list2):
+    zipped_lists = zip(list1, list2)
+    sorted_pairs = sorted(zipped_lists, reverse=True)
+
+    tuples = zip(*sorted_pairs)
+    list1, list2 = [list(tuple) for tuple in tuples]
+    return list1, list2
 
 if __name__=="__main__":
     geo_datafile = open('data/geodata', 'rb')
@@ -135,7 +155,8 @@ if __name__=="__main__":
         name = city_names[i]
         population_vec[i] = pop_data[name]
 
-    cluster_mat, cost_mat = facotory_placement(lat_long, population_vec, k=13, factory_capacity=5000, d_max=1000)
+    cluster_mat, dist_mat, cost_mat = \
+        facotory_placement(lat_long, population_vec, k=10, factory_capacity=7000, d_max=1000)
 
     # Process cluster matrix
     clusters = [] # List of clusters, each cluster is numpy (ix2) containing positions.
@@ -143,15 +164,18 @@ if __name__=="__main__":
     clusters_centers = [] # List of numpy size 2 vector containing cluster center position.
     cluster_center_names = [] # Name of the cluster center.
     cluster_cost = [] # List of cluster cost. Percentage cost. Percentage of total clusters operating cost.
+    cluster_shipment_max_distance = [] # List of maximum distance covered by the factory.
     for col in range(cluster_mat.shape[0]):
         cluster = []
         cost = 0
         cluster_population = 0
+        max_dist = 0
         for row in range(cluster_mat.shape[0]):
             if cluster_mat[row, col] != 0:
                 cluster.append(utm_list[row, :])
                 cost += cost_mat[row, col]
                 cluster_population += population_vec[row]
+                max_dist = max(dist_mat[row, col], max_dist)
 
         if len(cluster) != 0:
             clusters.append(np.array(cluster))
@@ -159,6 +183,7 @@ if __name__=="__main__":
             cluster_center_names.append(city_names[col])
             cluster_total_population.append(cluster_population)
             cluster_cost.append(cost)
+            cluster_shipment_max_distance.append(max_dist)
 
     cluster_cost = cluster_cost / sum(cluster_cost) * 100
     cluster_sizes = [c.shape[0] for c in clusters]
@@ -170,6 +195,11 @@ if __name__=="__main__":
 
     plot_cities(utm_list, city_names)
     plot_city_clusters(clusters, clusters_centers, city_names, utm_list)
-    plot_cluster_info(cluster_center_names, cluster_sizes, cluster_total_population, cluster_cost)
+    plot_cluster_info(
+        cluster_center_names,
+        cluster_sizes,
+        cluster_total_population,
+        cluster_cost,
+        cluster_shipment_max_distance)
 
     plt.show()
